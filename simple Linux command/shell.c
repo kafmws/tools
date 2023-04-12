@@ -50,6 +50,8 @@
 
 #ifndef _WIN64
 
+#define is_shell_char(ch) ((ch)=='|'||(ch)=='>'||(ch)=='<')
+
 //environment-copy
 char 	cwd[];
 char 	hostname[];
@@ -57,7 +59,7 @@ struct  passwd *pwd;
 
 void tip() {
 	stderror(getcwd(cwd,PATH_MAX) == NULL,"error at getcwd");
-	if(strcmp(cwd,pwd->pw_dir) == 0){
+	if(strcmp(cwd,pwd->pw_dir) == 0) {
 		cwd[0] = '~';
 		cwd[1] = 0;
 	}
@@ -66,7 +68,7 @@ void tip() {
 	else r_name = cwd;
 	printf("myshell[%s@%s %s]$", pwd->pw_name, hostname, r_name);
 }
-	
+
 
 #include <termio.h>
 
@@ -90,9 +92,9 @@ int getch() {
 
 #else
 
-void tip(){
+void tip() {
 	printf("kafm>");
-} 
+}
 
 #endif
 
@@ -115,15 +117,26 @@ int		h_cnt = 0;
 char	*history[HISTORY_SIZE] = {0};
 
 //cmd
+int  p = 0;
 int	 arg_cnt = 0;
 char *arg_list[MAX_ARGS]= {0};
+int  cmds_cnt = 0;
+int  exec_cnt = 0;
+char *cmds_list[MAX_ARGS] = {0};
+int  redirect_cnt = 0;
+enum redirect_t {
+    RDCT_IN, RDCT_OUT, RDCT_APPEND,
+} redirect_type[MAX_ARGS];
+char *redirect_list[MAX_ARGS] = {0};
 char buf[CACHE_SIZE];
 
 //body
 void set_shell_env();
 void be_a_shell();
-int lookup_shell_cmd();
+void split();
+void parse();
 void fork2exec();
+int  lookup_shell_cmd();
 void save_history();
 
 //inner cmd
@@ -131,6 +144,9 @@ int   shell_cmd_cnt;
 void (*shell_cmd[])();
 char *shell_cmd_name[];
 char *shell_cmd_helps[];
+
+int pre_read = -1;
+int pipes[2] = {0};
 
 int main() {
 
@@ -141,8 +157,9 @@ int main() {
 
 		tip();
 
+		p = 0;
 		int c, pre;
-		int p = 0, b = 0, hp = h_cnt;
+		int b = 0, hp = h_cnt;
 		while(c = getch()) {
 			if(p == CACHE_SIZE - 1) {
 				printf("can not exceed %d characters, "
@@ -159,27 +176,27 @@ int main() {
 				printf("\b \b");
 				if(pre != '\\')--p;
 			} else if(c == 13) {//'\n'
-				if(pre == '\\') {//just type a '\\'
+				if(pre == '\\' || pre == '|') {//just type a '\\' or '|'
 					b = p;
 					printf("\r\n> ");
 				} else {
 					printf("\r\n");
 					break;
 				}
-			} else if(c == 27){//escape
+			} else if(c == 27) { //escape
 				getch();
 				c = getch();
 				if(c == 0x41) {//history up
 					if(!hp) continue;
-					
-					if(hp == h_cnt){//save the work
+
+					if(hp == h_cnt) { //save the work
 						while(h_cnt == HISTORY_SIZE || c_p + p + 2 > CACHE_SIZE )
 							save_history(h_cnt>>1 + 1);
 						memcpy(cache + c_p, buf + b, p - b);
 						history[h_cnt] = cache + c_p;
 						cache[c_p + p - b] = 0;
 					}
-					
+
 					hp--;
 					char *tbuf = buf;
 					if(b == p) tbuf += p;
@@ -197,7 +214,7 @@ int main() {
 				} else if(c == 0x42) {//history down
 					if(hp>=h_cnt) continue;
 					hp++;
-					if(hp == h_cnt){
+					if(hp == h_cnt) {
 						int t = strlen(history[hp - 1]);
 						p -= t;
 						while(t--)printf("\b \b");
@@ -231,32 +248,151 @@ int main() {
 		history[h_cnt++] = cache + c_p;
 		c_p += p + 1;
 
-		int cur = 0;
-		arg_cnt = 0;
+		exec_cnt = 0;
+		split();
 
-		while(cur<p) {
-			arg_list[arg_cnt++] = &buf[cur];
-			while(isgraph(buf[cur])) cur++;
-			buf[cur++] = 0;
-			while(isspace(buf[cur]))cur++;
-			if(arg_cnt == MAX_ARGS - 1) {
-				printf("can not exceed %d args, "
-				       "the author is too lazy to use realloc.\n", MAX_ARGS - 1);
-				continue;
+		while(exec_cnt < cmds_cnt) {
+			parse();
+
+			pre_read = pipes[0];
+			if(exec_cnt != cmds_cnt - 1) {
+				stderror(pipe(pipes),"error at pipe :");
+				//printf("exec_cnt = %d, (%d)(%d)\n",exec_cnt,pipes[0],pipes[1]);
 			}
+
+			/*print arg_list*/
+//			printf("arg_cnt = %d\n",arg_cnt);
+//			int i = 0;
+//			for(i = 0; i<arg_cnt; i++) printf("(%s) ",arg_list[i]);
+//			printf("\n");
+
+			if(arg_cnt == 0)
+				continue;
+
+			/*print redirect list*/
+//#define RDCT(i) redirect_list[i<<1],redirect_list[(i<<1)+1]
+//			printf("redirect:%d\n",redirect_cnt);
+//			int j;
+//			for(j = 0; j<redirect_cnt; j++) {
+//				switch(redirect_type[j]) {
+//					case RDCT_IN:
+//						printf(" %s<%s ",RDCT(j));
+//						break;
+//					case RDCT_OUT:
+//						printf(" %s>%s ",RDCT(j));
+//						break;
+//					case RDCT_APPEND:
+//						printf(" %s>>%s ",RDCT(j));
+//						break;
+//				}
+//			}
+//			printf("\n");
+
+			int call = lookup_shell_cmd(arg_list[0]);
+			if(call!=-1) {
+				shell_cmd[call]();
+			} 
+			else fork2exec();
+			exec_cnt++;
 		}
-		arg_list[arg_cnt] = NULL;
-
-//		printf("arg_cnt = %d\n",arg_cnt);
-		if(arg_cnt == 0)
-			continue;
-
-		int call = lookup_shell_cmd(arg_list[0]);
-		if(call!=-1)
-			shell_cmd[call]();
-		else fork2exec();
 	}
 	return 0;
+}
+
+void split() {
+	cmds_cnt = 0;
+
+	int cur = 0;
+	while(cur<p && isspace(buf[cur])) cur++;
+	cmds_list[cmds_cnt++] = buf + cur;
+	while(cur<p) {
+		if(buf[cur] == '|') {
+			buf[cur] = 0;
+			while(isspace(buf[++cur]));
+			if(cur<p) cmds_list[cmds_cnt++] = buf + cur;
+		}
+		if(cmds_cnt == MAX_ARGS - 1) {
+			printf("can not exceed %d args | pipes | redirect, "
+			       "the author is too lazy to use realloc.\n", MAX_ARGS - 1);
+			break;
+		}
+		cur++;
+	}
+	cmds_list[cmds_cnt] = buf + p;
+	/*print the cmd split*/
+//	printf("p = %d\n",p);
+//	int i = 0;
+//	for(i=0;i<cmds_cnt;i++) printf("(%s)",cmds_list[i]);
+}
+
+void parse() {
+
+	arg_cnt = 0;
+	redirect_cnt = 0;
+	
+	static char *default_stream[] = {"0","1"}; 
+
+	int  cur = 0;
+	char *buf = cmds_list[exec_cnt];
+	while(buf[cur]) {
+		arg_list[arg_cnt++] = &buf[cur];//piece = &buf[cur]
+		while(isgraph(buf[cur])) {
+			if(buf[cur] == '>' || buf[cur] == '<') {
+				if(cur == 0 || isspace(buf[cur-1]) || !buf[cur-1]) arg_cnt--;
+				redirect_type[redirect_cnt] = buf[cur] == '>' ? RDCT_OUT : RDCT_IN;
+				buf[cur] = 0;
+				int tcur = cur - 1;
+				if(buf[++cur] == '>') {
+					if(redirect_type[redirect_cnt] == RDCT_OUT) goto failed;
+					buf[cur++] = 0;
+					redirect_type[redirect_cnt] = RDCT_APPEND;
+				}
+				if(tcur == -1 || !buf[tcur] || !isdigit(buf[tcur])){//not redirect arg
+					redirect_list[redirect_cnt << 1] = 
+										default_stream[redirect_type[redirect_cnt]];
+				}
+				else if(isdigit(buf[tcur])) {//check the left redirect param
+					while(tcur>=0&&isdigit(buf[tcur])) tcur--;
+					if(tcur==-1 || isspace(buf[tcur]) || !buf[tcur]){
+						arg_cnt--;
+						redirect_list[redirect_cnt << 1] = buf + tcur + 1;
+					}
+					else {
+						arg_cnt++;//not redirect arg
+						redirect_list[redirect_cnt << 1] = 
+										default_stream[redirect_type[redirect_cnt]];
+					}
+				}
+				while(isspace(buf[cur]))cur++;
+				if(buf[cur] == 0) {
+					failed:
+					arg_cnt = 0;//right redirect param not found
+					cmds_cnt = 0;
+					fprintf(stderr,"redirect syntax error\n");
+					break;
+				}
+				redirect_list[(redirect_cnt << 1) + 1] = buf + cur;
+				while(isgraph(buf[cur]))cur++;
+				redirect_cnt++;
+				break;
+			}else if(buf[cur] == '<') {
+				if(isspace(buf[cur-1])) arg_cnt--;
+				redirect_type[redirect_cnt] = RDCT_IN;
+				break;
+			}
+			cur++;
+		}
+		if(buf[cur] == 0) break;
+		buf[cur++] = 0;
+		while(isspace(buf[cur]))cur++;
+		if(arg_cnt == MAX_ARGS - 1 ||
+		        redirect_cnt == (MAX_ARGS>>1) - 1) {
+			printf("can not exceed %d args | pipes | redirect, "
+			       "the author is too lazy to use realloc.\n", MAX_ARGS - 1);
+			break;
+		}
+	}
+	arg_list[arg_cnt] = NULL;
 }
 
 int lookup_shell_cmd(const char *cmd) {
@@ -270,34 +406,84 @@ int lookup_shell_cmd(const char *cmd) {
 }
 
 void fork2exec() {
-	int p_return, info;
+	int p_return;
+	int rdct_cnt = 0;
+	//exec cmds_list
 	pid_t pid = fork();
 	errat(pid<0, "fork");
 	if(pid == 0) {
+
+		/*pipe*/
+		if(exec_cnt) {//not the first
+			//printf("exec_cnt = %d, pre_read = %d\n",exec_cnt,pre_read);
+			stderror(dup2(pre_read,0), "error at dup2 0:");
+		}
+		if(exec_cnt != cmds_cnt - 1) {//not the last
+			stderror(dup2(pipes[1],1) != 1, "error at dup2 1:");
+		}
+
+		/*excute redirect*/
+		while(rdct_cnt < redirect_cnt) {
+
+			/*print the redirect*/
+//				printf("re %d:\n",rdct_cnt);
+//				switch(redirect_type[rdct_cnt]) {
+//					case RDCT_IN:
+//						printf(" %s<%s ",RDCT(rdct_cnt));
+//						break;
+//					case RDCT_OUT:
+//						printf(" %s>%s ",RDCT(rdct_cnt));
+//						break;
+//					case RDCT_APPEND:
+//						printf(" %s>>%s ",RDCT(rdct_cnt));
+//						break;
+//				}
+//				printf("\n");
+
+			int left = rdct_cnt<<1, right = left + 1;
+			int oldfd = atoi(redirect_list[left]);
+			int newfd;
+			if(redirect_list[right][0] == '&') {
+				newfd = atoi(&redirect_list[right][1]);
+				if(newfd != oldfd)
+					stderror(dup2(newfd,oldfd) != oldfd, "error at dup2 &:");
+			} else {
+				stderror(close(oldfd),"error at close:");
+				if(redirect_type[rdct_cnt] == RDCT_IN) {
+					newfd = open(redirect_list[right], O_RDONLY, 0644);
+				} else if(redirect_type[rdct_cnt] == RDCT_OUT) {
+					newfd = open(redirect_list[right], O_WRONLY|O_TRUNC|O_CREAT, 0644);
+				} else if(redirect_type[rdct_cnt] == RDCT_APPEND) {
+					newfd = open(redirect_list[right], O_WRONLY|O_APPEND|O_CREAT, 0644);
+				}
+			}
+			stderror(newfd != oldfd, "error at redirect:");
+			rdct_cnt++;
+		}
+
+		/*print actually cmd*/
+//		int tt = 0;
+//		printf("arg_cnt = %d\n",arg_cnt);
+//		printf("cmds:");
+//		for(; tt < arg_cnt; tt++)
+//			printf("(%s)",arg_list[tt]);
+//		printf("\n");
+
 		if(execvp(arg_list[0],arg_list) == -1) {
+			stderror(1,"error at execvp:");
 			exit(errno);
 		}
-	}
-	wait(&p_return);
-	if(p_return) {
-		if(WIFEXITED(p_return)) {
-			printf("normal exit ");
-			info = WEXITSTATUS(p_return);
-			if(info == ENOENT) {
-				printf("%s:command not found\n",arg_list[0]);
-				return;
-			}
-		} else if(WIFSIGNALED(p_return)) {
-			printf("abnormal exit");
-			info = WTERMSIG(p_return);
-		} else if(WIFSTOPPED(p_return)) {
-			printf("process stop");
-			info = WSTOPSIG(p_return);
-		} else {
-			printf("unknown status");
+	}//child
+	else {
+		if(exec_cnt != cmds_cnt - 1) {//open pipes
+			stderror(close(pipes[1]),"error at close 1:");
 		}
-		printf("exit code:%d\n",info);
+		if(exec_cnt && pre_read != -1)
+			stderror(close(pre_read),"error at close pre_read:");
+		wait(&p_return);
+		if(p_return && errno) perror("");
 	}
+
 }
 
 void set_shell_env() {
@@ -305,11 +491,11 @@ void set_shell_env() {
 	stderror(gethostname(hostname,HOST_NAME_MAX),"shell at gethostname :");
 	pwd = getpwuid(getuid());
 	stderror(getcwd(cwd,PATH_MAX) == NULL,"error at getcwd");
-	if(strcmp(cwd,pwd->pw_dir) == 0){
+	if(strcmp(cwd,pwd->pw_dir) == 0) {
 		cwd[0] = '~';
 		cwd[1] = 0;
 	}
-	
+
 	sprintf(history_filename,"%s/.kafm_shell_history",pwd->pw_dir);
 	history_file = fopen(history_filename,"a");
 	if(!history_file) {
@@ -317,7 +503,7 @@ void set_shell_env() {
 		errat(history_file == NULL, "create");
 	}
 #endif
-	
+
 	//should identify the old record and newly
 //	int i = 0;
 //	FILE *fp = fopen(history_filename,"r");
@@ -353,7 +539,7 @@ void save_history(int num) {
 		//printf(" h: %s\n",history[i]);
 		len += fprintf(history_file,"%s\n",history[i++]);
 	}
-	if(num == h_cnt){
+	if(num == h_cnt) {
 		h_cnt = 0;
 		c_p = 0;
 	} else {
@@ -374,7 +560,7 @@ helphelp:
 		);
 		printf(
 		    "\thelp\t\tget help\t\t\t\texit\t\texit kafm shell\n"
-		    "\thistory\t\tget command history\t\t\t\t\n"
+		    "\thistory\t\tget command help\t\t\t\t\n"
 		);
 	} else if(arg_cnt == 2) {
 		if(strcmp(arg_list[1],"help") == 0) goto helphelp;
@@ -409,11 +595,11 @@ static void shell_cmd_history() {
 	}
 }
 
-static void shell_cmd_cd(){
+static void shell_cmd_cd() {
 	if(arg_cnt == 1) return;
 	char *dir_name = arg_list[1];
 	if(dir_name[0] == '~' && dir_name[1] == 0)
-			dir_name = pwd->pw_dir;
+		dir_name = pwd->pw_dir;
 	int re = chdir(dir_name);
 	stderror(re,"cd: %s:",dir_name);
 }
@@ -425,7 +611,7 @@ char *shell_cmd_name[] = {
 	"help", "exit", "history", "cd"
 };
 
-char *shell_cmd_helps[] ={
+char *shell_cmd_helps[] = {
 	NULL, "usage:exit [status]\n exit kafm shell\n",
 	"print the whole history stored the file .kafm_shell_history\n",
 	"change current work path\n"
