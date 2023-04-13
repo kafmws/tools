@@ -45,7 +45,7 @@ def save(userdir):
     cnt = 0
     for shtml, thtml, static_path in tasks:
         cnt += 1
-        print(f'正在处理{shtml}，第{cnt}个文件，共{len(tasks)}个文件')
+        print(f'正在处理第{cnt}个文件，共{len(tasks)}个文件')
         with open(shtml, 'r', encoding='utf8') as source, open(thtml, 'w', encoding='utf8') as target:
             text = source.read()
             
@@ -60,7 +60,7 @@ def save(userdir):
             text = save_batch(text, video_dir, (video_urls, video_urls), os.path.join(static_path, 'video'))
             
             target.write(text)
-            print(f'{shtml}处理完毕，转换后的新文件为{thtml}')
+            # print(f'{shtml}处理完毕，转换后的新文件为{thtml}')
 
 
 def unzip(path):
