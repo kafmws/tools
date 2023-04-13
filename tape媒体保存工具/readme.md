@@ -35,8 +35,8 @@
 ### 脚本使用方法
 
 ```
-python tape_snapshot.py _xxx.zip_
-python tape_snapshot.py _手机号目录_
+python tape_snapshot.py xxx.zip
+python tape_snapshot.py 手机号目录
 ```
 
 ---
