@@ -12,6 +12,7 @@
 
 1.将官网导出的zip文件重命名为tape.zip 或者
   解压官网导出的zip文件，将解压出的手机号码文件夹重命名为tape
+
 2.将本exe文件与重命名为tape的文件夹或tape.zip文件放置于同一目录下
   如：
 ```
@@ -45,4 +46,5 @@ python tape_snapshot.py *手机号目录*
 ---
 
 程序出错可联系 wdxdesperado at qq dot com
+
 不保证回复
