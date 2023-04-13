@@ -6,20 +6,20 @@ import requests
 
 from tqdm import tqdm
 
-source_path = 'tape'
+source_path = 'D:/Torrent/15955897608' # 设置为导出的手机号码目录路径
 target_path = None
 
-def save_batch(text, work_dir, urls, get_filename, static_path, ty, sleep_time=0.2):
+def save_batch(text, work_dir, urls, static_path, sleep_time=0.2):
     if len(urls) <= 0:
         return text
     os.chdir(work_dir)
     for url in tqdm(urls, ncols=60):
-        filename = get_filename(url)
+        filename = url.split('/')[-1]
         response = requests.get(url)
         with open(filename, 'wb') as f:
             f.write(response.content)
         time.sleep(sleep_time)
-        text = text.replace(url, os.path.join(static_path, ty, filename))
+        text = text.replace(url, os.path.join(static_path, filename))
     return text
 
 def save(userdir):
@@ -48,13 +48,14 @@ def save(userdir):
             text = source.read()
             
             img_urls = re.findall(r'<img.*?src="(.*?)".*?>', text, re.S)
-            text = save_batch(text, pic_dir, img_urls, lambda url: url.split('/')[-1].split('?')[0], static_path, 'picture')
+            img_urls = [url.split('?')[0] for url in img_urls]
+            text = save_batch(text, pic_dir, img_urls, os.path.join(static_path, 'picture'))
             
             audio_urls = re.findall(r'<audio.*?<source src="(.*?)".*?>', text, re.S)
-            text = save_batch(text, audio_dir, audio_urls, lambda url: url.split('/')[-1], static_path, 'audio')
+            text = save_batch(text, audio_dir, audio_urls, os.path.join(static_path, 'audio'))
             
             video_urls = re.findall(r'<video.*?<source src="(.*?)".*?>', text, re.S)
-            text = save_batch(text, video_dir, video_urls, lambda url: url.split('/')[-1], static_path, 'video')
+            text = save_batch(text, video_dir, video_urls, os.path.join(static_path, 'video'))
             
             target.write(text)
             print(f'{shtml}处理完毕，转换后的新文件为{thtml}')
@@ -84,7 +85,7 @@ if __name__ == '__main__':
         
         else:
             print(f'未找到tape目录！请按以下步骤执行:\n')
-            print('\n1. 解压tape导出的zip文件，并将文件夹重命名为tape\n')
+            print('\n1. 解压tape导出的zip文件，将解压出的手机号码文件夹重命名为tape\n')
             print('\n2. 将本exe文件与重命名为tape的文件夹放置于同一目录下\n\t例如D:\\tape 和 D:\\tape_snapshot.exe\n\n')
     except Exception as e:
         print('出现错误：', e)
