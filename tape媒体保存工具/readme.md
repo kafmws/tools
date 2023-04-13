@@ -10,10 +10,10 @@
 
 （目前仅提供Windows平台的exe程序，其它平台请考虑直接使用脚本）
 
-1.将官网导出的zip文件重命名为tape.zip 或者
-  解压官网导出的zip文件，将解压出的手机号码文件夹重命名为tape
+1. 将官网导出的`zip`文件重命名为`tape.zip` 或者
+  解压官网导出的`zip`文件，将解压出的手机号码文件夹重命名为`tape`
 
-2.将本exe文件与重命名为tape的文件夹或tape.zip文件放置于同一目录下
+2. 将本`exe`文件与`tape.zip`文件（或解压并重命名的`tape`文件夹）放置于同一目录下
   如：
 ```
   ────上级目录
@@ -21,7 +21,7 @@
     ├─tape.zip              【不解压则重命名zip文件】
     └─tape_snapshot.exe      (本程序)
 ```
-3.运行本程序，保持网络通畅，等待转存完成
+3. 运行本程序，保持网络通畅，等待转存完成
 
 
 程序会生成新的以`_local`结尾的文件夹，该目录中网页将访问本地保存的媒体文件而不是`tape`服务器
@@ -35,8 +35,8 @@
 ### 脚本使用方法
 
 ```
-python tape_snapshot.py *xxx.zip*
-python tape_snapshot.py *手机号目录*
+python tape_snapshot.py _xxx.zip_
+python tape_snapshot.py _手机号目录_
 ```
 
 ---
