@@ -8,9 +8,9 @@
 
 ### 使用方法
 
-（目前仅提供Windows平台的exe程序，其它平台请考虑直接使用脚本）
+（目前仅提供Windows平台的[exe程序](https://github.com/kafmws/tools/releases/download/v0.2/tape_snapshot.exe)，其它平台请考虑直接使用脚本）
 
-1. 将官网导出的`zip`文件重命名为`tape.zip` 或者
+1. 将官网导出的`zip`文件重命名为`tape.zip` **或者**
   解压官网导出的`zip`文件，将解压出的手机号码文件夹重命名为`tape`
 
 2. 将本`exe`文件与`tape.zip`文件（或解压并重命名的`tape`文件夹）放置于同一目录下
@@ -28,7 +28,7 @@
 
 图片/音频/视频分别保存在各个用户目录下的picture/audio/video目录下
 
-转存的结果以`_local`结尾的文件夹可以整体移动，也可以重命名
+转存的结果即以`_local`结尾的文件夹可以整体移动，也可以重命名
 
 ---
 
@@ -36,7 +36,11 @@
 
 ```
 python tape_snapshot.py xxx.zip
+或
 python tape_snapshot.py 手机号目录
+
+以及
+python tape_snapshot.py xxx.zip new_zip_name  转存并打包
 ```
 
 ---
