@@ -14,6 +14,7 @@ zip2zip = False
 def save_batch(text, work_dir, url_pairs, static_path, sleep_time=0.2):
     if len(url_pairs[0]) <= 0:
         return text
+    pre_work_dir = os.curdir
     os.chdir(work_dir)
     urls, orignal_urls = url_pairs
     for to_repalce, url in tqdm(list(zip(urls, orignal_urls)), ncols=60):
@@ -23,6 +24,7 @@ def save_batch(text, work_dir, url_pairs, static_path, sleep_time=0.2):
             f.write(response.content)
         time.sleep(sleep_time)
         text = text.replace(to_repalce, os.path.join(static_path, filename))
+    os.chdir(pre_work_dir)
     return text
 
 def save(userdir):
@@ -79,6 +81,7 @@ if __name__ == '__main__':
             source_path = sys.argv[1]
             if len(sys.argv) > 2: # 指定转存后的zip文件名(无后缀)
                 zip2zip = sys.argv[2]
+        source_path_dir = os.path.abspath(os.path.dirname(source_path))
         # 处理压缩文件
         if source_path.endswith('zip'):
             source_path = unzip(source_path)
@@ -108,9 +111,10 @@ if __name__ == '__main__':
             print(f'请查看{target_path}目录，原{source_path}已可以删除')
 
             if zip2zip:  #将转存后的网页打包为zip文件
-                shutil.make_archive(zip2zip, 'zip', target_path)
-                shutil.rmtree(source_path)
-                shutil.rmtree(target_path)
+                print(f'转存至{os.path.join(source_path_dir, zip2zip)}.zip')
+                shutil.make_archive(os.path.join(source_path_dir, zip2zip), 'zip', target_path)
+                # shutil.rmtree(source_path)
+                # shutil.rmtree(target_path)
         
         else:
             print('未找到tape文件！请参考以下使用说明:')
